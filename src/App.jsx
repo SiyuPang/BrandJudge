@@ -1,4 +1,11 @@
 import { useState, useEffect, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+// ─── SUPABASE CLIENT ──────────────────────────────────────────────────────────
+const supabase = createClient(
+  "https://uxaiecxoxknrtxlzrety.supabase.co",
+  "sb_publishable_RFFxc5zGI048RKVSwz4weQ_RmXY3MOC"
+);
 
 // ─── MOBILE HOOK ──────────────────────────────────────────────────────────────
 function useIsMobile() {
@@ -1571,27 +1578,36 @@ function Dashboard({ entries, onAdd, onSelect, onSeenAgain, t }) {
 }
 
 // ─── LOGIN ────────────────────────────────────────────────────────────────────
-function Login({ onLogin, lang, setLang }) {
-  const [tab, setTab] = useState("signin"); // signin | signup
+function Login({ lang, setLang }) {
+  const [tab, setTab] = useState("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [name, setName] = useState("");
   const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [successMsg, setSuccessMsg] = useState("");
   const lt = T[lang];
-
   const isZh = lang === "zh";
 
-  const handleSignIn = () => {
+  const handleSignIn = async () => {
     if (!email || !password) return setErr(isZh ? "请填写邮箱和密码。" : "Please enter your email and password.");
-    onLogin({ email, name: email.split("@")[0] });
+    setErr(""); setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    setLoading(false);
+    if (error) setErr(isZh ? `登录失败：${error.message}` : `Sign in failed: ${error.message}`);
   };
 
-  const handleSignUp = () => {
+  const handleSignUp = async () => {
     if (!name || !email || !password || !confirm) return setErr(isZh ? "请填写所有字段。" : "Please fill in all fields.");
     if (password !== confirm) return setErr(isZh ? "两次密码不一致。" : "Passwords do not match.");
     if (password.length < 6) return setErr(isZh ? "密码至少 6 位。" : "Password must be at least 6 characters.");
-    onLogin({ email, name });
+    setErr(""); setLoading(true);
+    const { error } = await supabase.auth.signUp({ email, password, options: { data: { name } } });
+    setLoading(false);
+    if (error) return setErr(isZh ? `注册失败：${error.message}` : `Sign up failed: ${error.message}`);
+    setSuccessMsg(isZh ? "注册成功！请检查邮箱点击确认链接，然后回来登录。" : "Account created! Check your email for a confirmation link, then sign in.");
+    setTab("signin");
   };
 
   const inputStyle = { width: "100%", boxSizing: "border-box", background: "#0d1117", border: "1px solid #374151", borderRadius: 8, padding: "11px 14px", color: "#e5e7eb", fontSize: 13, outline: "none", fontFamily: "system-ui", marginBottom: 12 };
@@ -1600,38 +1616,29 @@ function Login({ onLogin, lang, setLang }) {
   return (
     <div style={{ minHeight: "100vh", background: "#0d1117", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: "system-ui" }}>
       <div style={{ width: "100%", maxWidth: 380 }}>
-
-        {/* Lang toggle */}
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 20 }}>
           <button onClick={() => setLang(l => l === "en" ? "zh" : "en")}
             style={{ padding: "4px 12px", background: "transparent", border: "1px solid #374151", borderRadius: 6, color: "#c8a96e", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
             {lang === "en" ? "中文" : "EN"}
           </button>
         </div>
-
-        {/* Header */}
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{ fontSize: 11, letterSpacing: "0.2em", color: "#c8a96e", textTransform: "uppercase", marginBottom: 10 }}>Commercial Intelligence</div>
           <div style={{ fontSize: 32, fontWeight: 700, color: "#f9fafb", letterSpacing: "-0.02em", marginBottom: 8, fontFamily: "Georgia, serif" }}>{lt.appName}</div>
           <div style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.6 }}>{lt.loginTagline}</div>
         </div>
-
-        {/* Card */}
         <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", overflow: "hidden" }}>
-
-          {/* Tabs */}
           <div style={{ display: "flex", borderBottom: "1px solid #1f2937" }}>
             {[["signin", isZh ? "登录" : "Sign In"], ["signup", isZh ? "注册" : "Sign Up"]].map(([key, label]) => (
-              <button key={key} onClick={() => { setTab(key); setErr(""); }}
+              <button key={key} onClick={() => { setTab(key); setErr(""); setSuccessMsg(""); }}
                 style={{ flex: 1, padding: "14px", background: "transparent", border: "none", borderBottom: tab === key ? "2px solid #c8a96e" : "2px solid transparent", color: tab === key ? "#c8a96e" : "#6b7280", fontWeight: tab === key ? 700 : 400, fontSize: 13, cursor: "pointer", fontFamily: "system-ui", marginBottom: -1 }}>
                 {label}
               </button>
             ))}
           </div>
-
           <div style={{ padding: 24 }}>
             {err && <div style={{ marginBottom: 14, padding: "8px 12px", background: "#f8717122", border: "1px solid #f8717144", borderRadius: 6, fontSize: 12, color: "#f87171" }}>{err}</div>}
-
+            {successMsg && <div style={{ marginBottom: 14, padding: "8px 12px", background: "#16a34a22", border: "1px solid #16a34a55", borderRadius: 6, fontSize: 12, color: "#4ade80" }}>{successMsg}</div>}
             {tab === "signup" && (
               <>
                 <label style={labelStyle}>{isZh ? "姓名" : "Name"}</label>
@@ -1639,15 +1646,12 @@ function Login({ onLogin, lang, setLang }) {
                   style={inputStyle} onKeyDown={e => e.key === "Enter" && handleSignUp()} />
               </>
             )}
-
             <label style={labelStyle}>{lt.email}</label>
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com"
               style={inputStyle} onKeyDown={e => e.key === "Enter" && (tab === "signin" ? handleSignIn() : handleSignUp())} />
-
             <label style={labelStyle}>{lt.password}</label>
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••"
               style={{ ...inputStyle, marginBottom: tab === "signup" ? 12 : 20 }} onKeyDown={e => e.key === "Enter" && (tab === "signin" ? handleSignIn() : handleSignUp())} />
-
             {tab === "signup" && (
               <>
                 <label style={labelStyle}>{isZh ? "确认密码" : "Confirm Password"}</label>
@@ -1655,23 +1659,17 @@ function Login({ onLogin, lang, setLang }) {
                   style={{ ...inputStyle, marginBottom: 20 }} onKeyDown={e => e.key === "Enter" && handleSignUp()} />
               </>
             )}
-
-            <button onClick={tab === "signin" ? handleSignIn : handleSignUp}
-              style={{ width: "100%", padding: "12px", background: "#c8a96e", color: "#0d1117", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: "pointer", letterSpacing: "0.03em" }}>
-              {tab === "signin" ? (isZh ? "登录 →" : "Sign In →") : (isZh ? "创建账号 →" : "Create Account →")}
+            <button onClick={tab === "signin" ? handleSignIn : handleSignUp} disabled={loading}
+              style={{ width: "100%", padding: "12px", background: loading ? "#374151" : "#c8a96e", color: loading ? "#9ca3af" : "#0d1117", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: loading ? "not-allowed" : "pointer", letterSpacing: "0.03em" }}>
+              {loading ? (isZh ? "处理中..." : "Processing...") : tab === "signin" ? (isZh ? "登录 →" : "Sign In →") : (isZh ? "创建账号 →" : "Create Account →")}
             </button>
-
             <div style={{ marginTop: 16, textAlign: "center", fontSize: 12, color: "#6b7280" }}>
               {tab === "signin"
-                ? <span>{isZh ? "还没有账号？" : "Don't have an account? "}<button onClick={() => { setTab("signup"); setErr(""); }} style={{ background: "none", border: "none", color: "#c8a96e", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{isZh ? "立即注册" : "Sign up"}</button></span>
-                : <span>{isZh ? "已有账号？" : "Already have an account? "}<button onClick={() => { setTab("signin"); setErr(""); }} style={{ background: "none", border: "none", color: "#c8a96e", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{isZh ? "立即登录" : "Sign in"}</button></span>
+                ? <span>{isZh ? "还没有账号？" : "Don't have an account? "}<button onClick={() => { setTab("signup"); setErr(""); setSuccessMsg(""); }} style={{ background: "none", border: "none", color: "#c8a96e", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{isZh ? "立即注册" : "Sign up"}</button></span>
+                : <span>{isZh ? "已有账号？" : "Already have an account? "}<button onClick={() => { setTab("signin"); setErr(""); setSuccessMsg(""); }} style={{ background: "none", border: "none", color: "#c8a96e", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{isZh ? "立即登录" : "Sign in"}</button></span>
               }
             </div>
           </div>
-        </div>
-
-        <div style={{ textAlign: "center", marginTop: 14, fontSize: 11, color: "#4b5563" }}>
-          {lt.mockNote}
         </div>
       </div>
     </div>
@@ -1681,30 +1679,87 @@ function Login({ onLogin, lang, setLang }) {
 // ─── APP ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState(null);
-  const [entries, setEntries] = useState(SAMPLE_ENTRIES);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [entries, setEntries] = useState([]);
+  const [dbLoading, setDbLoading] = useState(false);
   const [view, setView] = useState("dashboard");
   const [selected, setSelected] = useState(null);
   const [lang, setLang] = useState("en");
   const t = T[lang];
   const isMobile = useIsMobile();
 
-  if (!user) return <Login onLogin={setUser} lang={lang} setLang={setLang} />;
+  // ── Auth listener ──
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
-  const deleteEntry = (id) => setEntries(prev => prev.filter(e => e.id !== id));
+  // ── Load entries from DB when user logs in ──
+  useEffect(() => {
+    if (!user) { setEntries([]); return; }
+    setDbLoading(true);
+    supabase
+      .from("entries")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .then(({ data, error }) => {
+        if (!error && data) setEntries(data.map(row => ({ ...row.data, _dbId: row.id })));
+        setDbLoading(false);
+      });
+  }, [user]);
 
-  const seenAgain = (id, location, date) => {
-    setEntries(prev => prev.map(e => e.id !== id ? e : {
-      ...e,
-      sightings: [...(e.sightings || []), { date: date || new Date().toISOString().slice(0, 10), location }]
-    }));
+  // ── Show loading while checking auth ──
+  if (authLoading) return (
+    <div style={{ minHeight: "100vh", background: "#0d1117", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ color: "#6b7280", fontSize: 13 }}>Loading...</div>
+    </div>
+  );
+
+  if (!user) return <Login lang={lang} setLang={setLang} />;
+
+  // ── CRUD operations ──
+  const deleteEntry = async (id) => {
+    const entry = entries.find(e => e.id === id);
+    if (entry?._dbId) await supabase.from("entries").delete().eq("id", entry._dbId);
+    setEntries(prev => prev.filter(e => e.id !== id));
   };
 
-  const saveEntry = (entry) => {
-    setEntries(prev => {
-      const idx = prev.findIndex(e => e.id === entry.id);
-      if (idx >= 0) { const n = [...prev]; n[idx] = entry; return n; }
-      return [entry, ...prev];
+  const seenAgain = async (id, location, date) => {
+    const updated = entries.map(e => e.id !== id ? e : {
+      ...e,
+      sightings: [...(e.sightings || []), { date: date || new Date().toISOString().slice(0, 10), location }]
     });
+    setEntries(updated);
+    const entry = updated.find(e => e.id === id);
+    if (entry?._dbId) {
+      const { _dbId, ...data } = entry;
+      await supabase.from("entries").update({ data }).eq("id", _dbId);
+    }
+  };
+
+  const saveEntry = async (entry) => {
+    const existing = entries.find(e => e.id === entry.id);
+    if (existing?._dbId) {
+      // Update existing
+      const { _dbId, ...data } = { ...entry, _dbId: existing._dbId };
+      await supabase.from("entries").update({ data }).eq("id", _dbId);
+      setEntries(prev => prev.map(e => e.id === entry.id ? { ...entry, _dbId } : e));
+    } else {
+      // Insert new
+      const { data: rows, error } = await supabase
+        .from("entries")
+        .insert({ user_id: user.id, data: entry })
+        .select();
+      if (!error && rows?.[0]) {
+        setEntries(prev => [{ ...entry, _dbId: rows[0].id }, ...prev.filter(e => e.id !== entry.id)]);
+      }
+    }
     setView("dashboard");
     setSelected(null);
   };
@@ -1739,7 +1794,7 @@ export default function App() {
             style={{ padding: "5px 10px", background: "transparent", border: "1px solid #374151", borderRadius: 6, color: "#c8a96e", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
             {lang === "en" ? "中" : "EN"}
           </button>
-          <button onClick={() => setUser(null)}
+          <button onClick={() => supabase.auth.signOut()}
             style={{ background: "transparent", border: "1px solid #374151", color: "#6b7280", cursor: "pointer", fontSize: 12, borderRadius: 6, padding: "5px 10px" }}>
             {isMobile ? "↩" : t.logout}
           </button>
@@ -1747,7 +1802,13 @@ export default function App() {
       </nav>
 
       <main style={S.main}>
-        {view === "dashboard" && (
+        {dbLoading && (
+          <div style={{ textAlign: "center", padding: 40, color: "#6b7280", fontSize: 13 }}>
+            {lang === "zh" ? "加载中..." : "Loading your entries..."}
+          </div>
+        )}
+
+        {!dbLoading && view === "dashboard" && (
           <>
             <div style={{ marginBottom: 24 }}>
               <div style={{ fontSize: 24, fontWeight: 700, color: "#f9fafb", fontFamily: "Georgia, serif", letterSpacing: "-0.01em", marginBottom: 4 }}>{t.yourBrandLog}</div>
@@ -1757,7 +1818,7 @@ export default function App() {
           </>
         )}
 
-        {(view === "add" || view === "edit") && (
+        {!dbLoading && (view === "add" || view === "edit") && (
           <>
             <div style={{ marginBottom: 28 }}>
               <div style={{ fontSize: 22, fontWeight: 700, color: "#f9fafb", fontFamily: "Georgia, serif", letterSpacing: "-0.01em", marginBottom: 4 }}>
@@ -1775,7 +1836,7 @@ export default function App() {
           </>
         )}
 
-        {view === "detail" && selected && (
+        {!dbLoading && view === "detail" && selected && (
           <EntryDetail
             entry={entries.find(e => e.id === selected.id) || selected}
             onEdit={() => setView("edit")}
